@@ -8728,6 +8728,13 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
 		goto update;
 
 	/*
+	 * Do not preempt for tasks that are sched_delayed as it would violate
+	 * EEVDF to forcibly queue an ineligible task.
+	 */
+	if (pse->sched_delayed)
+		goto update;
+
+	/*
 	 * If @p has a shorter slice than current and @p is eligible, override
 	 * current's slice protection in order to allow preemption.
 	 */
