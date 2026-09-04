@@ -901,8 +901,8 @@ bool update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	if (se->sched_delayed) {
 		/* previous vlag < 0 otherwise se would not be delayed */
 		vlag = max(vlag, se->vlag);
-		if (sched_feat(DELAY_ZERO))
-			vlag = min(vlag, 0);
+		if (sched_feat(DELAY_ZERO) && vlag > 0)
+    		vlag = 0;
 	}
 	se->vlag = vlag;
 

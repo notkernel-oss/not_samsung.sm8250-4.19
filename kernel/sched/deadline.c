@@ -968,7 +968,7 @@ static int start_dl_timer(struct task_struct *p)
 	 * chosen as the deadline is too small, don't even try to
 	 * start the timer in the past!
 	 */
-	if (ktime_before(act, now))
+	if (ktime_us_delta(act, now) < 0)
 		return 0;
 
 	/*
@@ -1460,6 +1460,7 @@ static void __dequeue_dl_entity(struct sched_dl_entity *dl_se)
 		return;
 
 	rb_erase_cached(&dl_se->rb_node, &dl_rq->root);
+
 	RB_CLEAR_NODE(&dl_se->rb_node);
 
 	dec_dl_tasks(dl_se, dl_rq);
