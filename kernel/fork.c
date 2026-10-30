@@ -2619,6 +2619,27 @@ noinline static int copy_clone_args_from_user(struct kernel_clone_args *kargs,
 	if (unlikely(!access_ok(uargs, size)))
 		return -EFAULT;
 
+	if (size > sizeof(struct clone_args)) {
+		unsigned char __user *addr;
+		unsigned char __user *end;
+		unsigned char val;
+
+		addr = (void __user *)uargs + sizeof(struct clone_args);
+		end = (void __user *)uargs + size;
+
+		for (; addr < end; addr++) {
+			if (get_user(val, addr))
+				return -EFAULT;
+			if (val)
+				return -E2BIG;
+		}
+
+		size = sizeof(struct clone_args);
+	}
+
+	if (copy_from_user(&args, uargs, size))
+		return -EFAULT;
+
 	if (unlikely(args.set_tid_size > MAX_PID_NS_LEVEL))
 		return -EINVAL;
 
@@ -2658,7 +2679,35 @@ noinline static int copy_clone_args_from_user(struct kernel_clone_args *kargs,
 	return 0;
 }
 
-static bool clone3_args_valid(const struct kernel_clone_args *kargs)
+/**
+ * clone3_stack_valid - check and prepare stack
+ * @kargs: kernel clone args
+ *
+ * Verify that the stack arguments userspace gave us are sane.
+ * In addition, set the stack direction for userspace since it's easy for us to
+ * determine.
+ */
+static inline bool clone3_stack_valid(struct kernel_clone_args *kargs)
+{
+	if (kargs->stack == 0) {
+		if (kargs->stack_size > 0)
+			return false;
+	} else {
+		if (kargs->stack_size == 0)
+			return false;
+
+		if (!access_ok((void __user *)kargs->stack, kargs->stack_size))
+			return false;
+
+#if !defined(CONFIG_STACK_GROWSUP) && !defined(CONFIG_IA64)
+		kargs->stack += kargs->stack_size;
+#endif
+	}
+
+	return true;
+}
+
+static bool clone3_args_valid(struct kernel_clone_args *kargs)
 {
 	/* Verify that no unknown flags are passed along. */
 	if (kargs->flags & ~(CLONE_LEGACY_FLAGS | CLONE_CLEAR_SIGHAND))
@@ -2677,6 +2726,9 @@ static bool clone3_args_valid(const struct kernel_clone_args *kargs)
 
 	if ((kargs->flags & (CLONE_THREAD | CLONE_PARENT)) &&
 	    kargs->exit_signal)
+		return false;
+
+	if (!clone3_stack_valid(kargs))
 		return false;
 
 	return true;
